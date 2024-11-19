@@ -1,6 +1,0 @@
-asyncio
-fake_useragent
-loguru
-websockets
-requests
-ssl
