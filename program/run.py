@@ -1,4 +1,10 @@
 import asyncio
+import sys
+import os
+
+# Menambahkan path ke folder utama "projoki" agar modul dapat ditemukan
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from modul.proxy_handler import main
 
 async def main_script():
