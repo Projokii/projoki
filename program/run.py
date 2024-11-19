@@ -1,5 +1,10 @@
+import sys
+import os
 import asyncio
 from modul.proxy_handler import main  # Impor modul utama
+
+# Menambahkan jalur proyek ke sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 async def main_script():
     # Coba membaca user_id dari file data/userid.txt
