@@ -1,16 +1,15 @@
 import asyncio
-from modul.proxy_handler import main  # Import sesuai struktur modul
+from modul.proxy_handler import main  # Impor sesuai folder
 
 async def main_script():
     try:
-        # Membaca user_id dari file userid.txt yang ada di folder 'data'
         with open('data/userid.txt', 'r') as f:
-            user_id = f.read().strip()
+            user_id = f.read().strip()  # Membaca user_id dari file
     except FileNotFoundError:
         print("File 'data/userid.txt' tidak ditemukan.")
         return
 
-    # Panggil fungsi main() yang ada di proxy_handler.py, dengan file proxy_1.txt dari folder 'bahan'
+    # Memulai fungsi main dari proxy_handler.py, menggunakan file proxy_1.txt
     await main('bahan/proxy_1.txt', user_id)
 
 if __name__ == "__main__":
