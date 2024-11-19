@@ -11,23 +11,21 @@ from subprocess import call
 
 # Membaca konfigurasi dari file config.json
 def load_config():
-    if not os.path.exists('config.json'):
+    config_path = os.path.abspath('config.json')
+    if not os.path.exists(config_path):
         logger.warning("File config.json tidak ditemukan, menggunakan nilai default.")
         return {
             "proxy_retry_limit": 5,
             "reload_interval": 60,
             "max_concurrent_connections": 50
         }
-    with open('config.json', 'r') as f:
+    with open(config_path, 'r') as f:
         return json.load(f)
 
 # Membuat folder data jika belum ada
-if not os.path.exists('data'):
-    os.makedirs('data')
-
+os.makedirs('data', exist_ok=True)
 # Membuat folder log jika belum ada
-if not os.path.exists('logs'):
-    os.makedirs('logs')
+os.makedirs('logs', exist_ok=True)
 
 # Konfigurasi
 config = load_config()
@@ -104,56 +102,53 @@ async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
                                 await websocket.send(json.dumps(auth_response))
 
                             elif message.get("action") == "PONG":
-                                logger.success("BERHASIL", color="<green>")
+                                logger.success("BERHASIL")
                                 await websocket.send(json.dumps({"id": message["id"], "origin_action": "PONG"}))
 
                         except asyncio.TimeoutError:
-                            logger.warning("Koneksi Ulang", color="<yellow>")
+                            logger.warning("Koneksi Ulang")
                             break
 
             except Exception as e:
                 retries += 1
-                logger.error("Koneksi gagal, mencoba lagi...", color="<red>")
+                logger.error("Koneksi gagal, mencoba lagi...")
                 await asyncio.sleep(min(backoff, 2))  # Exponential backoff
                 backoff *= 1.2  
 
         if retries >= proxy_retry_limit:
             proxy_failures.append(socks5_proxy)
-            logger.info(f"Proxy {socks5_proxy} telah dihapus", color="<orange>")
+            logger.info(f"Proxy {socks5_proxy} telah dihapus")
 
 # Fungsi untuk memuat ulang daftar proxy
 async def reload_proxy_list(proxy_file):
-    with open(proxy_file, 'r') as file:
+    proxy_file_path = os.path.abspath(proxy_file)
+    with open(proxy_file_path, 'r') as file:
         local_proxies = file.read().splitlines()
     logger.info(f"Daftar proxy dari {proxy_file} telah dimuat pertama kali.")
     
     while True:
-        await asyncio.sleep(reload_interval)  # Tunggu interval sebelum reload berikutnya
-        with open(proxy_file, 'r') as file:
+        await asyncio.sleep(reload_interval)
+        with open(proxy_file_path, 'r') as file:
             local_proxies = file.read().splitlines()
         logger.info(f"Daftar proxy dari {proxy_file} telah dimuat ulang.")
         return local_proxies
 
 async def main(proxy_file, user_id):
-    # Cek pembaruan skrip dari GitHub
     auto_update_script()
+    start_time = time.time()
 
-    start_time = time.time()  # Waktu mulai program
-
-    # Load proxy pertama kali tanpa delay
-    with open(proxy_file, 'r') as file:
+    proxy_file_path = os.path.abspath(proxy_file)
+    with open(proxy_file_path, 'r') as file:
         local_proxies = file.read().splitlines()
     logger.info(f"Daftar proxy dari {proxy_file} pertama kali dimuat.")
     
-    # Task queue untuk membagi beban
     queue = asyncio.Queue()
     for proxy in local_proxies:
         await queue.put(proxy)
     
-    # Memulai task reload proxy secara berkala
     proxy_list_task = asyncio.create_task(reload_proxy_list(proxy_file))
 
-    semaphore = asyncio.Semaphore(max_concurrent_connections)  # Batasi koneksi bersamaan
+    semaphore = asyncio.Semaphore(max_concurrent_connections)
     proxy_failures = []
 
     tasks = []
@@ -170,5 +165,5 @@ async def process_proxy(queue, user_id, semaphore, proxy_failures):
 
 if __name__ == "__main__":
     user_id = input("Masukkan user ID Anda: ")
-    proxy_file = 'proxy_1.txt'  # Ubah ini sesuai dengan file proxy yang digunakan
+    proxy_file = 'bahan/proxy_1.txt'  # Menggunakan path relatif
     asyncio.run(main(proxy_file, user_id))
