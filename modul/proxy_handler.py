@@ -7,7 +7,6 @@ import os
 from loguru import logger
 from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
-from subprocess import call
 
 # Membaca konfigurasi dari file config.json
 def load_config():
@@ -40,10 +39,16 @@ user_agent = UserAgent(os='windows', platforms='pc', browsers='chrome')
 async def generate_random_user_agent():
     return user_agent.random
 
+def format_proxy(proxy):
+    # Cek apakah proxy sudah memiliki prefix 'http://' atau 'https://'
+    if not proxy.startswith("http://") and not proxy.startswith("https://"):
+        return "http://" + proxy  # Tambahkan prefix 'http://' jika belum ada
+    return proxy
+
 async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
     async with semaphore:
         retries = 0
-        backoff = 0.5  # Backoff mulai dari 0.5 detik
+        backoff = 0.5
         device_id = str(uuid.uuid4())
 
         while retries < proxy_retry_limit:
@@ -60,7 +65,6 @@ async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
                 uri = random.choice(["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/"])
                 proxy = Proxy.from_url(socks5_proxy)
 
-                # Menghubungkan tanpa SSL/TLS context
                 async with proxy_connect(uri, proxy=proxy, extra_headers=custom_headers) as websocket:
 
                     async def send_ping():
@@ -104,7 +108,7 @@ async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
             except Exception as e:
                 retries += 1
                 logger.error("Koneksi gagal, mencoba lagi...", color="<red>")
-                await asyncio.sleep(min(backoff, 2))  # Exponential backoff
+                await asyncio.sleep(min(backoff, 2))
                 backoff *= 1.2  
 
         if retries >= proxy_retry_limit:
@@ -114,33 +118,30 @@ async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
 # Fungsi untuk memuat ulang daftar proxy
 async def reload_proxy_list(proxy_file):
     with open(proxy_file, 'r') as file:
-        local_proxies = file.read().splitlines()
+        local_proxies = [format_proxy(proxy.strip()) for proxy in file.readlines()]
     logger.info(f"Daftar proxy dari {proxy_file} telah dimuat pertama kali.")
     
     while True:
-        await asyncio.sleep(reload_interval)  # Tunggu interval sebelum reload berikutnya
+        await asyncio.sleep(reload_interval)
         with open(proxy_file, 'r') as file:
-            local_proxies = file.read().splitlines()
+            local_proxies = [format_proxy(proxy.strip()) for proxy in file.readlines()]
         logger.info(f"Daftar proxy dari {proxy_file} telah dimuat ulang.")
         return local_proxies
 
 async def main(proxy_file, user_id):
-    start_time = time.time()  # Waktu mulai program
+    start_time = time.time()
 
-    # Load proxy pertama kali tanpa delay
     with open(proxy_file, 'r') as file:
-        local_proxies = file.read().splitlines()
+        local_proxies = [format_proxy(proxy.strip()) for proxy in file.readlines()]
     logger.info(f"Daftar proxy dari {proxy_file} pertama kali dimuat.")
     
-    # Task queue untuk membagi beban
     queue = asyncio.Queue()
     for proxy in local_proxies:
         await queue.put(proxy)
     
-    # Memulai task reload proxy secara berkala
     proxy_list_task = asyncio.create_task(reload_proxy_list(proxy_file))
 
-    semaphore = asyncio.Semaphore(max_concurrent_connections)  # Batasi koneksi bersamaan
+    semaphore = asyncio.Semaphore(max_concurrent_connections)
     proxy_failures = []
 
     tasks = []
