@@ -33,15 +33,6 @@ max_concurrent_connections = config["max_concurrent_connections"]
 
 user_agent = UserAgent(os='windows', platforms='pc', browsers='chrome')
 
-def auto_update_script():
-    logger.info("Memeriksa pembaruan skrip di GitHub...")
-    if os.path.isdir(".git"):
-        call(["git", "pull"])
-        logger.info("Skrip diperbarui dari GitHub.")
-    else:
-        logger.warning("Repositori ini belum di-clone menggunakan git. Silakan clone menggunakan git untuk fitur auto-update.")
-        exit()
-
 async def generate_random_user_agent():
     return user_agent.random
 
