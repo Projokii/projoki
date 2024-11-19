@@ -170,5 +170,5 @@ async def process_proxy(queue, user_id, semaphore, proxy_failures):
 
 if __name__ == "__main__":
     user_id = input("Masukkan user ID Anda: ")
-    proxy_file = 'bahan/proxy_1.txt'  # Ubah ini sesuai dengan file proxy yang digunakan
+    proxy_file = 'proxy_1.txt'  # Ubah ini sesuai dengan file proxy yang digunakan
     asyncio.run(main(proxy_file, user_id))
