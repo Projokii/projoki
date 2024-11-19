@@ -9,25 +9,23 @@ from websockets_proxy import Proxy, proxy_connect
 from fake_useragent import UserAgent
 from subprocess import call
 
-# Membaca konfigurasi dari file config.json
 def load_config():
-    config_path = os.path.abspath('config.json')
-    if not os.path.exists(config_path):
+    if not os.path.exists('config.json'):
         logger.warning("File config.json tidak ditemukan, menggunakan nilai default.")
         return {
             "proxy_retry_limit": 5,
             "reload_interval": 60,
             "max_concurrent_connections": 50
         }
-    with open(config_path, 'r') as f:
+    with open('config.json', 'r') as f:
         return json.load(f)
 
-# Membuat folder data jika belum ada
-os.makedirs('data', exist_ok=True)
-# Membuat folder log jika belum ada
-os.makedirs('logs', exist_ok=True)
+if not os.path.exists('data'):
+    os.makedirs('data')
 
-# Konfigurasi
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
 config = load_config()
 proxy_retry_limit = config["proxy_retry_limit"]
 reload_interval = config["reload_interval"]
@@ -35,7 +33,6 @@ max_concurrent_connections = config["max_concurrent_connections"]
 
 user_agent = UserAgent(os='windows', platforms='pc', browsers='chrome')
 
-# Fungsi pembaruan otomatis dari GitHub
 def auto_update_script():
     logger.info("Memeriksa pembaruan skrip di GitHub...")
     if os.path.isdir(".git"):
@@ -51,7 +48,7 @@ async def generate_random_user_agent():
 async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
     async with semaphore:
         retries = 0
-        backoff = 0.5  # Backoff mulai dari 0.5 detik
+        backoff = 0.5
         device_id = str(uuid.uuid4())
 
         while retries < proxy_retry_limit:
@@ -61,16 +58,14 @@ async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
                     "Accept-Language": random.choice(["en-US", "en-GB", "id-ID"]),
                     "Referer": random.choice(["https://www.google.com/", "https://www.bing.com/"]),
                     "X-Forwarded-For": ".".join(map(str, (random.randint(1, 255) for _ in range(4)))),
-                    "DNT": "1",  
+                    "DNT": "1",
                     "Connection": "keep-alive"
                 }
 
                 uri = random.choice(["wss://proxy.wynd.network:4444/", "wss://proxy.wynd.network:4650/"])
                 proxy = Proxy.from_url(socks5_proxy)
 
-                # Menghubungkan tanpa SSL/TLS context
                 async with proxy_connect(uri, proxy=proxy, extra_headers=custom_headers) as websocket:
-
                     async def send_ping():
                         while True:
                             ping_message = json.dumps({
@@ -102,33 +97,31 @@ async def connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures):
                                 await websocket.send(json.dumps(auth_response))
 
                             elif message.get("action") == "PONG":
-                                logger.success("BERHASIL")
+                                logger.success("BERHASIL", color="<green>")
                                 await websocket.send(json.dumps({"id": message["id"], "origin_action": "PONG"}))
 
                         except asyncio.TimeoutError:
-                            logger.warning("Koneksi Ulang")
+                            logger.warning("Koneksi Ulang", color="<yellow>")
                             break
 
             except Exception as e:
                 retries += 1
-                logger.error("Koneksi gagal, mencoba lagi...")
-                await asyncio.sleep(min(backoff, 2))  # Exponential backoff
-                backoff *= 1.2  
+                logger.error("Koneksi gagal, mencoba lagi...", color="<red>")
+                await asyncio.sleep(min(backoff, 2))
+                backoff *= 1.2
 
         if retries >= proxy_retry_limit:
             proxy_failures.append(socks5_proxy)
-            logger.info(f"Proxy {socks5_proxy} telah dihapus")
+            logger.info(f"Proxy {socks5_proxy} telah dihapus", color="<orange>")
 
-# Fungsi untuk memuat ulang daftar proxy
 async def reload_proxy_list(proxy_file):
-    proxy_file_path = os.path.abspath(proxy_file)
-    with open(proxy_file_path, 'r') as file:
+    with open(proxy_file, 'r') as file:
         local_proxies = file.read().splitlines()
     logger.info(f"Daftar proxy dari {proxy_file} telah dimuat pertama kali.")
     
     while True:
         await asyncio.sleep(reload_interval)
-        with open(proxy_file_path, 'r') as file:
+        with open(proxy_file, 'r') as file:
             local_proxies = file.read().splitlines()
         logger.info(f"Daftar proxy dari {proxy_file} telah dimuat ulang.")
         return local_proxies
@@ -137,8 +130,7 @@ async def main(proxy_file, user_id):
     auto_update_script()
     start_time = time.time()
 
-    proxy_file_path = os.path.abspath(proxy_file)
-    with open(proxy_file_path, 'r') as file:
+    with open(proxy_file, 'r') as file:
         local_proxies = file.read().splitlines()
     logger.info(f"Daftar proxy dari {proxy_file} pertama kali dimuat.")
     
@@ -162,8 +154,3 @@ async def process_proxy(queue, user_id, semaphore, proxy_failures):
     while not queue.empty():
         socks5_proxy = await queue.get()
         await connect_to_wss(socks5_proxy, user_id, semaphore, proxy_failures)
-
-if __name__ == "__main__":
-    user_id = input("Masukkan user ID Anda: ")
-    proxy_file = 'bahan/proxy_1.txt'  # Menggunakan path relatif
-    asyncio.run(main(proxy_file, user_id))
