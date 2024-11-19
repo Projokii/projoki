@@ -1,5 +1,11 @@
 import asyncio
-from proxy_handler import main
+import sys
+import os
+
+# Menambahkan path modul ke sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), '../modul'))
+
+from proxy_handler import main  # Sekarang Python dapat menemukan proxy_handler.py
 
 async def main_script():
     try:
